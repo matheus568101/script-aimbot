@@ -1,115 +1,119 @@
 -- // CONFIGURAÇÕES INICIAIS
-local teamCheck = false
 local fov = 100
 local smoothing = 0.32
 local predictionFactor = 0.08
-local highlightEnabled = false
+local teamCheck = false
 local lockPart = "HumanoidRootPart"
 local aimbotEnabled = true
-local Toggle = true 
 local ToggleKey = Enum.KeyCode.Q
-local MenuKey = Enum.KeyCode.K -- Tecla para abrir o menu
+local MenuKey = Enum.KeyCode.K
 
--- // SERVIÇOS
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
--- // CRIAÇÃO DO MENU (GUI)
-local sgui = Instance.new("ScreenGui", localPlayer.PlayerGui)
-sgui.Name = "AimbotMenu"
-sgui.ResetOnSpawn = false
+-- // GARANTIR QUE A GUI EXISTA
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AimbotSystem"
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
 
-local frame = Instance.new("Frame", sgui)
-frame.Size = UDim2.new(0, 220, 0, 280)
-frame.Position = UDim2.new(0.5, -110, 0.5, -140)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-frame.BorderSizePixel = 0
-frame.Visible = false -- Começa invisível
+-- // CRIAÇÃO DO MENU
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = screenGui
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -125)
+mainFrame.Size = UDim2.new(0, 200, 0, 250)
+mainFrame.Visible = false -- Começa invisível, aperte K para abrir
 
-local corner = Instance.new("UICorner", frame)
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = ToolAddressValue -- 8 pixels
+uiCorner.Parent = mainFrame
 
-local title = Instance.new("TextLabel", frame)
+local title = Instance.new("TextLabel")
+title.Parent = mainFrame
 title.Size = UDim2.new(1, 0, 0, 40)
-title.Text = "Aimbot Settings (K)"
+title.Text = "MENU AIMBOT"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
+title.TextSize = 16
 
--- Função auxiliar para criar botões no menu
-local function createButton(name, pos, callback)
-    local btn = Instance.new("TextButton", frame)
+-- // FUNÇÃO PARA CRIAR BOTÕES RAPIDAMENTE
+local function createMenuButton(text, pos, callback)
+    local btn = Instance.new("TextButton")
+    btn.Parent = mainFrame
     btn.Size = UDim2.new(0.9, 0, 0, 35)
     btn.Position = pos
-    btn.Text = name
     btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    btn.Text = text
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Instance.new("UICorner", btn)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 14
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+    
     btn.MouseButton1Click:Connect(callback)
     return btn
 end
 
--- // BOTÕES DO MENU
-local btnToggle = createButton("Aimbot: ON", UDim2.new(0.05, 0, 0, 50), function(b)
+-- // BOTÕES
+local toggleBtn = createMenuButton("Aimbot: ON", UDim2.new(0.05, 0, 0, 50), function()
     aimbotEnabled = not aimbotEnabled
-    script.Parent.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
+    mainFrame.AimbotToggle.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
 end)
+toggleBtn.Name = "AimbotToggle"
 
-createButton("Team Check: OFF", UDim2.new(0.05, 0, 0, 95), function()
+createMenuButton("Time: " .. (teamCheck and "ON" or "OFF"), UDim2.new(0.05, 0, 0, 95), function()
     teamCheck = not teamCheck
-    -- Aqui você pode atualizar o texto do botão se desejar
+    -- Atualiza o texto internamente se necessário
 end)
 
-createButton("Aumentar FOV (+20)", UDim2.new(0.05, 0, 0, 140), function()
+createMenuButton("FOV +", UDim2.new(0.05, 0, 0, 140), function()
     fov = fov + 20
-    FOVring.Radius = fov
 end)
 
-createButton("Diminuir FOV (-20)", UDim2.new(0.05, 0, 0, 185), function()
-    fov = math.max(0, fov - 20)
-    FOVring.Radius = fov
+createMenuButton("FOV -", UDim2.new(0.05, 0, 0, 185), function()
+    fov = math.max(10, fov - 20)
 end)
 
-createButton("Fechar Menu", UDim2.new(0.05, 0, 0, 230), function()
-    frame.Visible = false
-end)
-
--- // LÓGICA DE ABRIR COM "K"
-UserInputService.InputBegan:Connect(function(input, processed)
-    if not processed and input.KeyCode == MenuKey then
-        frame.Visible = not frame.Visible
+-- // LÓGICA DA TECLA K PARA ABRIR
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == MenuKey then
+        mainFrame.Visible = not mainFrame.Visible
     end
 end)
 
--- // CÓDIGO DO AIMBOT (ESTRUTURA ORIGINAL)
+-- // DESENHO DO CÍRCULO (FOV)
 local FOVring = Drawing.new("Circle")
 FOVring.Visible = true
 FOVring.Thickness = 1
-FOVring.Radius = fov
 FOVring.Transparency = 0.8
-FOVring.Color = Color3.fromRGB(255, 128, 128)
+FOVring.Color = Color3.fromRGB(255, 255, 255)
 
-local currentTarget = nil
+-- // LÓGICA DO AIMBOT
 local toggleState = false
-local debounce = false
+local currentTarget = nil
 
-local function getClosest(cframe)
+local function getClosestPlayer()
     local target = nil
-    local mag = math.huge
+    local shortestDistance = math.huge
     local screenCenter = workspace.CurrentCamera.ViewportSize / 2
-    local ray = Ray.new(cframe.Position, cframe.LookVector).Unit
 
     for _, v in pairs(Players:GetPlayers()) do
-        if v.Character and v.Character:FindFirstChild(lockPart) and v ~= localPlayer then
+        if v ~= localPlayer and v.Character and v.Character:FindFirstChild(lockPart) then
             if not teamCheck or v.Team ~= localPlayer.Team then
-                local screenPoint, onScreen = workspace.CurrentCamera:WorldToViewportPoint(v.Character[lockPart].Position)
-                local dist = (Vector2.new(screenPoint.X, screenPoint.Y) - screenCenter).Magnitude
+                local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(v.Character[lockPart].Position)
+                local distance = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
 
-                if onScreen and dist <= fov then
-                    local magBuf = (v.Character[lockPart].Position - ray:ClosestPoint(v.Character[lockPart].Position)).Magnitude
-                    if magBuf < mag then
-                        mag = magBuf
+                if onScreen and distance <= fov then
+                    if distance < shortestDistance then
+                        shortestDistance = distance
                         target = v
                     end
                 end
@@ -119,43 +123,35 @@ local function getClosest(cframe)
     return target
 end
 
--- // LOOP PRINCIPAL
+-- // LOOP DE ATUALIZAÇÃO
 RunService.RenderStepped:Connect(function()
+    -- Atualiza o círculo
+    FOVring.Radius = fov
     FOVring.Position = workspace.CurrentCamera.ViewportSize / 2
-    
+    FOVring.Visible = aimbotEnabled
+
     if aimbotEnabled then
-        if Toggle then
-            if UserInputService:IsKeyDown(ToggleKey) then
-                if not debounce then
-                    debounce = true
-                    toggleState = not toggleState
-                    task.wait(0.3)
-                    debounce = false
-                end
-            end
+        -- Ativa/Desativa com Q
+        if UserInputService:IsKeyDown(ToggleKey) then
+            toggleState = true
         else
-            toggleState = UserInputService:IsKeyDown(ToggleKey)
+            toggleState = false
         end
 
         if toggleState then
-            local cam = workspace.CurrentCamera
-            if not currentTarget then
-                currentTarget = getClosest(cam.CFrame)
-            end
-
+            currentTarget = getClosestPlayer()
             if currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild(lockPart) then
-                local pos = currentTarget.Character[lockPart].Position
-                local velocity = currentTarget.Character[lockPart].Velocity
-                local predictedPos = pos + (velocity * predictionFactor)
-                
+                local cam = workspace.CurrentCamera
+                local targetPos = currentTarget.Character[lockPart].Position
+                local targetVelocity = currentTarget.Character[lockPart].Velocity
+                local predictedPos = targetPos + (targetVelocity * predictionFactor)
+
                 cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, predictedPos), smoothing)
                 FOVring.Color = Color3.fromRGB(0, 255, 0)
-            else
-                FOVring.Color = Color3.fromRGB(255, 128, 128)
             end
         else
             currentTarget = nil
-            FOVring.Color = Color3.fromRGB(255, 128, 128)
+            FOVring.Color = Color3.fromRGB(255, 255, 255)
         end
     else
         FOVring.Visible = false
