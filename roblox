@@ -1,159 +1,219 @@
 -- // CONFIGURAÇÕES INICIAIS
 local fov = 100
-local smoothing = 0.32
+local smoothing = 0.3 
 local predictionFactor = 0.08
-local teamCheck = false
-local lockPart = "HumanoidRootPart"
 local aimbotEnabled = true
-local ToggleKey = Enum.KeyCode.Q
+local espEnabled = false
+local teamCheck = false
+local lockPart = "Head"
 local MenuKey = Enum.KeyCode.K
+local ToggleKey = Enum.KeyCode.Q -- Tecla padrão
+local MouseButtonTarget = nil -- Armazena se for botão do mouse
+local isBinding = false
+local accentColor = Color3.fromRGB(0, 255, 150)
 
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
--- // GARANTIR QUE A GUI EXISTA
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "AimbotSystem"
-screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
-screenGui.ResetOnSpawn = false
+-- // 1. INTERFACE
+local sg = Instance.new("ScreenGui")
+sg.Name = "TheuMenu"
+sg.ResetOnSpawn = false
+sg.Parent = localPlayer.PlayerGui
 
--- // CRIAÇÃO DO MENU
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Parent = screenGui
-mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-mainFrame.BorderSizePixel = 0
-mainFrame.Position = UDim2.new(0.5, -100, 0.5, -125)
-mainFrame.Size = UDim2.new(0, 200, 0, 250)
-mainFrame.Visible = false -- Começa invisível, aperte K para abrir
-
-local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = ToolAddressValue -- 8 pixels
-uiCorner.Parent = mainFrame
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 240, 0, 460)
+frame.Position = UDim2.new(0.5, -120, 0.4, 0)
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+frame.BorderSizePixel = 2
+frame.BorderColor3 = accentColor
+frame.Active = true
+frame.Visible = true 
+frame.Parent = sg
 
 local title = Instance.new("TextLabel")
-title.Parent = mainFrame
 title.Size = UDim2.new(1, 0, 0, 40)
-title.Text = "MENU AIMBOT"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.BackgroundTransparency = 1
+title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+title.Text = "THEU MENUS"
+title.TextColor3 = accentColor
 title.Font = Enum.Font.GothamBold
 title.TextSize = 16
+title.Parent = frame
 
--- // FUNÇÃO PARA CRIAR BOTÕES RAPIDAMENTE
-local function createMenuButton(text, pos, callback)
-    local btn = Instance.new("TextButton")
-    btn.Parent = mainFrame
-    btn.Size = UDim2.new(0.9, 0, 0, 35)
-    btn.Position = pos
-    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    btn.Text = text
+-- // ARRASTAR MENU
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true; dragStart = input.Position; startPos = frame.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+
+-- Funções de Botão
+local function createButton(txt, yPos, callback)
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0.85, 0, 0, 30)
+    btn.Position = UDim2.new(0.075, 0, 0, yPos)
+    btn.Text = txt
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.Gotham
-    btn.TextSize = 14
-    
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0, 6)
-    btnCorner.Parent = btn
-    
-    btn.MouseButton1Click:Connect(callback)
+    btn.BorderSizePixel = 0
+    btn.MouseButton1Click:Connect(function() callback(btn) end)
     return btn
 end
 
--- // BOTÕES
-local toggleBtn = createMenuButton("Aimbot: ON", UDim2.new(0.05, 0, 0, 50), function()
+createButton("AIMBOT: ON", 50, function(self) 
     aimbotEnabled = not aimbotEnabled
-    mainFrame.AimbotToggle.Text = aimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
-end)
-toggleBtn.Name = "AimbotToggle"
-
-createMenuButton("Time: " .. (teamCheck and "ON" or "OFF"), UDim2.new(0.05, 0, 0, 95), function()
-    teamCheck = not teamCheck
-    -- Atualiza o texto internamente se necessário
+    self.Text = aimbotEnabled and "AIMBOT: ON" or "AIMBOT: OFF"
 end)
 
-createMenuButton("FOV +", UDim2.new(0.05, 0, 0, 140), function()
-    fov = fov + 20
+-- BOTÃO DE KEYBIND (MOUSE OU TECLADO)
+local keyBtn = createButton("MIRA: " .. ToggleKey.Name, 90, function(self) 
+    isBinding = true
+    self.Text = "PRESSIONE TECLA OU MOUSE..."
+    self.TextColor3 = Color3.fromRGB(255, 255, 0)
 end)
 
-createMenuButton("FOV -", UDim2.new(0.05, 0, 0, 185), function()
-    fov = math.max(10, fov - 20)
-end)
-
--- // LÓGICA DA TECLA K PARA ABRIR
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == MenuKey then
-        mainFrame.Visible = not mainFrame.Visible
+-- Captura da nova entrada (Mouse ou Teclado)
+UserInputService.InputBegan:Connect(function(input)
+    if isBinding then
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            if input.KeyCode ~= MenuKey then
+                ToggleKey = input.KeyCode
+                MouseButtonTarget = nil
+                keyBtn.Text = "MIRA: " .. ToggleKey.Name
+                isBinding = false
+            end
+        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then -- Botão Direito
+            MouseButtonTarget = Enum.UserInputType.MouseButton2
+            ToggleKey = Enum.KeyCode.Unknown
+            keyBtn.Text = "MIRA: MOUSE 2"
+            isBinding = false
+        elseif input.UserInputType == Enum.UserInputType.MouseButton3 then -- Botão do Meio
+            MouseButtonTarget = Enum.UserInputType.MouseButton3
+            ToggleKey = Enum.KeyCode.Unknown
+            keyBtn.Text = "MIRA: MOUSE 3"
+            isBinding = false
+        end
+        keyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 end)
 
--- // DESENHO DO CÍRCULO (FOV)
+createButton("ALVO: HEAD", 130, function(self) 
+    if lockPart == "Head" then lockPart = "UpperTorso"; self.Text = "ALVO: TORSO"
+    elseif lockPart == "UpperTorso" then lockPart = "HumanoidRootPart"; self.Text = "ALVO: CENTRO"
+    else lockPart = "Head"; self.Text = "ALVO: HEAD" end
+end)
+
+createButton("ESP (CAIXA): OFF", 170, function(self) 
+    espEnabled = not espEnabled
+    self.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+end)
+
+createButton("TIME CHECK: OFF", 210, function(self) 
+    teamCheck = not teamCheck
+    self.Text = teamCheck and "TIME CHECK: ON" or "TIME CHECK: OFF"
+end)
+
+-- // SLIDERS E COLOR PICKER
+local sliderLabel = Instance.new("TextLabel", frame)
+sliderLabel.Size = UDim2.new(1, 0, 0, 20); sliderLabel.Position = UDim2.new(0, 0, 0, 255)
+sliderLabel.Text = "RAIO DO FOV: " .. fov; sliderLabel.BackgroundTransparency = 1; sliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+local sliderBack = Instance.new("Frame", frame)
+sliderBack.Size = UDim2.new(0.8, 0, 0, 8); sliderBack.Position = UDim2.new(0.1, 0, 0, 280); sliderBack.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+
+local sliderFill = Instance.new("Frame", sliderBack)
+sliderFill.Size = UDim2.new(fov/300, 0, 1, 0); sliderFill.BackgroundColor3 = accentColor; sliderFill.BorderSizePixel = 0
+
+local sliderBtn = Instance.new("TextButton", sliderBack)
+sliderBtn.Size = UDim2.new(1, 0, 1, 0); sliderBtn.BackgroundTransparency = 1; sliderBtn.Text = ""
+
+local colorBar = Instance.new("Frame", frame)
+colorBar.Size = UDim2.new(0.8, 0, 0, 15); colorBar.Position = UDim2.new(0.1, 0, 0, 310); colorBar.BorderSizePixel = 0
+local grad = Instance.new("UIGradient")
+grad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(255,0,0)), ColorSequenceKeypoint.new(0.4, Color3.fromRGB(0,255,0)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,255))})
+grad.Parent = colorBar
+local colorBtn = Instance.new("TextButton", colorBar)
+colorBtn.Size = UDim2.new(1, 0, 1, 0); colorBtn.BackgroundTransparency = 1; colorBtn.Text = ""
+
+-- // 2. LÓGICA DO JOGO
 local FOVring = Drawing.new("Circle")
-FOVring.Visible = true
-FOVring.Thickness = 1
-FOVring.Transparency = 0.8
-FOVring.Color = Color3.fromRGB(255, 255, 255)
+FOVring.Visible = true; FOVring.Thickness = 1.5; FOVring.Color = accentColor
 
--- // LÓGICA DO AIMBOT
-local toggleState = false
-local currentTarget = nil
+local draggingSlider, draggingColor = false, false
+sliderBtn.MouseButton1Down:Connect(function() draggingSlider = true end)
+colorBtn.MouseButton1Down:Connect(function() draggingColor = true end)
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingSlider = false; draggingColor = false end end)
 
-local function getClosestPlayer()
-    local target = nil
-    local shortestDistance = math.huge
-    local screenCenter = workspace.CurrentCamera.ViewportSize / 2
+local function isAimKeyDown()
+    if MouseButtonTarget then
+        return UserInputService:IsMouseButtonPressed(MouseButtonTarget)
+    else
+        return UserInputService:IsKeyDown(ToggleKey)
+    end
+end
 
+local boxes = {}
+RunService.RenderStepped:Connect(function()
+    local mouseLoc = UserInputService:GetMouseLocation()
+    if draggingSlider then
+        local percent = math.clamp((mouseLoc.X - sliderBack.AbsolutePosition.X) / sliderBack.AbsoluteSize.X, 0, 1)
+        fov = math.floor(percent * 300)
+        sliderFill.Size = UDim2.new(percent, 0, 1, 0); sliderLabel.Text = "RAIO DO FOV: " .. fov
+    end
+    if draggingColor then
+        local percent = math.clamp((mouseLoc.X - colorBar.AbsolutePosition.X) / colorBar.AbsoluteSize.X, 0, 1)
+        accentColor = Color3.fromHSV(percent, 0.8, 1)
+        frame.BorderColor3, title.TextColor3, sliderFill.BackgroundColor3, FOVring.Color = accentColor, accentColor, accentColor, accentColor
+    end
+    
+    FOVring.Radius, FOVring.Position, FOVring.Visible = fov, camera.ViewportSize / 2, aimbotEnabled
+
+    -- ESP e AIMBOT
+    local target, shortest = nil, math.huge
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= localPlayer and v.Character and v.Character:FindFirstChild(lockPart) then
-            if not teamCheck or v.Team ~= localPlayer.Team then
-                local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(v.Character[lockPart].Position)
-                local distance = (Vector2.new(pos.X, pos.Y) - screenCenter).Magnitude
+        if v ~= localPlayer and v.Character then
+            local hrp = v.Character:FindFirstChild("HumanoidRootPart")
+            local box = boxes[v] or Drawing.new("Square"); boxes[v] = box
+            if hrp and espEnabled then
+                local p, vis = camera:WorldToViewportPoint(hrp.Position)
+                if vis then
+                    local size = 2000 / p.Z
+                    box.Size, box.Position, box.Color, box.Visible = Vector2.new(size, size * 1.5), Vector2.new(p.X - size/2, p.Y - size/2), accentColor, true
+                else box.Visible = false end
+            else box.Visible = false end
 
-                if onScreen and distance <= fov then
-                    if distance < shortestDistance then
-                        shortestDistance = distance
-                        target = v
-                    end
+            local aimPart = v.Character:FindFirstChild(lockPart) or hrp
+            if aimPart and aimbotEnabled then
+                if not teamCheck or v.Team ~= localPlayer.Team then
+                    local p, vis = camera:WorldToViewportPoint(aimPart.Position)
+                    local dist = (Vector2.new(p.X, p.Y) - (camera.ViewportSize/2)).Magnitude
+                    if vis and dist <= fov and dist < shortest then shortest = dist; target = aimPart end
                 end
             end
         end
     end
-    return target
-end
 
--- // LOOP DE ATUALIZAÇÃO
-RunService.RenderStepped:Connect(function()
-    -- Atualiza o círculo
-    FOVring.Radius = fov
-    FOVring.Position = workspace.CurrentCamera.ViewportSize / 2
-    FOVring.Visible = aimbotEnabled
-
-    if aimbotEnabled then
-        -- Ativa/Desativa com Q
-        if UserInputService:IsKeyDown(ToggleKey) then
-            toggleState = true
-        else
-            toggleState = false
-        end
-
-        if toggleState then
-            currentTarget = getClosestPlayer()
-            if currentTarget and currentTarget.Character and currentTarget.Character:FindFirstChild(lockPart) then
-                local cam = workspace.CurrentCamera
-                local targetPos = currentTarget.Character[lockPart].Position
-                local targetVelocity = currentTarget.Character[lockPart].Velocity
-                local predictedPos = targetPos + (targetVelocity * predictionFactor)
-
-                cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, predictedPos), smoothing)
-                FOVring.Color = Color3.fromRGB(0, 255, 0)
-            end
-        else
-            currentTarget = nil
-            FOVring.Color = Color3.fromRGB(255, 255, 255)
-        end
-    else
-        FOVring.Visible = false
+    if target and isAimKeyDown() and not frame.Visible then
+        local pPos = target.Position + (target.Velocity * predictionFactor)
+        camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, pPos), smoothing)
     end
+end)
+
+UserInputService.InputBegan:Connect(function(i, p)
+    if not p and i.KeyCode == MenuKey then frame.Visible = not frame.Visible end
 end)
