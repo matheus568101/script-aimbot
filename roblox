@@ -4,28 +4,7 @@ local smoothing = 0.32
 local predictionFactor = 0.08  -- Adjust this factor to improve prediction accuracy
 local highlightEnabled = false  -- Variable to enable or disable target highlighting. Change to False if using an ESP script.
 local lockPart = "HumanoidRootPart"  -- Choose what part it locks onto. Ex. HumanoidRootPart or Head
-button.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.BorderSizePixel = 2
 
--- Estilizar o botão (Bordas arredondadas)
-local corner = Instance.new("UICorner", button)
-
--- Função para o Botão
-button.MouseButton1Click:Connect(function()
-    aimbotEnabled = not aimbotEnabled
-    if aimbotEnabled then
-        button.Text = "Aimbot: ON"
-        button.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
-        FOVring.Visible = true
-    else
-        button.Text = "Aimbot: OFF"
-        button.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        FOVring.Visible = false
-        currentTarget = nil
-    end
-end)
- 
 local Toggle = false  -- Enable or disable toggle mode
 local ToggleKey = Enum.KeyCode.E  -- Choose the key for toggling aimbot lock
  
