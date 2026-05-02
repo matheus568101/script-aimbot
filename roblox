@@ -108,7 +108,7 @@ loop = RunService.RenderStepped:Connect(function()
                 handleToggle()
             end
         else
-            toggleState = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+            toggleState = UserInputService:IsMouseButtonPressed(Enum.UserInputType.Q)
         end
  
         if toggleState then
