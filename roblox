@@ -1,14 +1,16 @@
 -- // CONFIGURAÇÕES INICIAIS
-local fov = 100
-local smoothing = 0.3 
-local predictionFactor = 0.08
+local fov = 150
+local smoothing = 0.15
 local aimbotEnabled = true
-local espEnabled = false
-local teamCheck = false
+local fovVisible = true
+local espBox = true
+local espSkeleton = true
+local espHealthBar = true
+local noclipEnabled = false
 local lockPart = "Head"
 local MenuKey = Enum.KeyCode.K
-local ToggleKey = Enum.KeyCode.Q -- Tecla padrão
-local MouseButtonTarget = nil -- Armazena se for botão do mouse
+local ToggleKey = Enum.KeyCode.Q
+local MouseButtonTarget = nil
 local isBinding = false
 local accentColor = Color3.fromRGB(0, 255, 150)
 
@@ -18,202 +20,163 @@ local UserInputService = game:GetService("UserInputService")
 local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- // 1. INTERFACE
-local sg = Instance.new("ScreenGui")
-sg.Name = "TheuMenu"
+-- // 1. INTERFACE (GUI)
+local sg = Instance.new("ScreenGui", localPlayer.PlayerGui)
+sg.Name = "TheuMenus_V1_Final"
 sg.ResetOnSpawn = false
-sg.Parent = localPlayer.PlayerGui
 
-local frame = Instance.new("Frame")
-frame.Name = "MainFrame"
-frame.Size = UDim2.new(0, 240, 0, 460)
-frame.Position = UDim2.new(0.5, -120, 0.4, 0)
-frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-frame.BorderSizePixel = 2
-frame.BorderColor3 = accentColor
-frame.Active = true
-frame.Visible = true 
-frame.Parent = sg
+local main = Instance.new("Frame", sg)
+main.Size = UDim2.new(0, 480, 0, 380) -- Aumentado um pouco para caber tudo
+main.Position = UDim2.new(0.5, -240, 0.4, -190)
+main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+main.BorderSizePixel = 0
+main.Active = true
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 40)
-title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-title.Text = "THEU MENUS"
-title.TextColor3 = accentColor
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.Parent = frame
+local stroke = Instance.new("UIStroke", main); stroke.Color = accentColor; stroke.Thickness = 2
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
 
--- // ARRASTAR MENU
-local dragging, dragStart, startPos
-title.InputBegan:Connect(function(input)
+-- Barra de Título (Arraste)
+local titleBar = Instance.new("TextLabel", main)
+titleBar.Size = UDim2.new(1, -140, 0, 35)
+titleBar.Position = UDim2.new(0, 135, 0, 0)
+titleBar.BackgroundTransparency = 1
+titleBar.Text = "THEU MENUS V1"
+titleBar.TextColor3 = Color3.new(1, 1, 1)
+titleBar.TextSize = 16; titleBar.Font = Enum.Font.GothamBold; titleBar.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Sistema de Drag
+local dragging, dragInput, dragStart, startPos
+main.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true; dragStart = input.Position; startPos = frame.Position
+        dragging = true; dragStart = input.Position; startPos = main.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
     end
 end)
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - dragStart
-        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-end)
+main.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end end)
+UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then
+    local delta = input.Position - dragStart
+    main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end end)
 
--- Funções de Botão
-local function createButton(txt, yPos, callback)
-    local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.new(0.85, 0, 0, 30)
-    btn.Position = UDim2.new(0.075, 0, 0, yPos)
-    btn.Text = txt
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.Gotham
-    btn.BorderSizePixel = 0
-    btn.MouseButton1Click:Connect(function() callback(btn) end)
-    return btn
+-- Sidebar e Tabs
+local sidebar = Instance.new("Frame", main)
+sidebar.Size = UDim2.new(0, 130, 1, 0); sidebar.BackgroundColor3 = Color3.fromRGB(20, 20, 20); Instance.new("UICorner", sidebar)
+
+local container = Instance.new("Frame", main)
+container.Position = UDim2.new(0, 140, 0, 40); container.Size = UDim2.new(1, -150, 1, -50); container.BackgroundTransparency = 1
+
+local tabs = { Aimbot = Instance.new("ScrollingFrame", container), Visuals = Instance.new("ScrollingFrame", container) }
+for _, f in pairs(tabs) do
+    f.Size = UDim2.new(1, 0, 1, 0); f.BackgroundTransparency = 1; f.Visible = false; f.ScrollBarThickness = 2
+    Instance.new("UIListLayout", f).Padding = UDim.new(0, 10)
+end
+tabs.Aimbot.Visible = true
+
+-- // 2. FUNÇÕES DE CRIAÇÃO
+local function createToggle(tab, text, start, callback)
+    local b = Instance.new("TextButton", tab)
+    b.Size = UDim2.new(1, -10, 0, 32); b.BackgroundColor3 = Color3.fromRGB(35, 35, 35); b.TextColor3 = Color3.new(1,1,1); b.Text = text .. (start and ": ON" or ": OFF"); b.Font = Enum.Font.Gotham; Instance.new("UICorner", b)
+    local s = start
+    b.MouseButton1Click:Connect(function() s = not s; b.Text = text .. (s and ": ON" or ": OFF"); callback(s) end)
 end
 
-createButton("AIMBOT: ON", 50, function(self) 
-    aimbotEnabled = not aimbotEnabled
-    self.Text = aimbotEnabled and "AIMBOT: ON" or "AIMBOT: OFF"
-end)
+local function createSlider(tab, text, min, max, default, callback)
+    local frame = Instance.new("Frame", tab); frame.Size = UDim2.new(1, -10, 0, 45); frame.BackgroundTransparency = 1
+    local label = Instance.new("TextLabel", frame); label.Size = UDim2.new(1, 0, 0, 20); label.Text = text .. ": " .. default; label.TextColor3 = Color3.new(1,1,1); label.BackgroundTransparency = 1; label.TextXAlignment = Enum.TextXAlignment.Left
+    local bar = Instance.new("Frame", frame); bar.Size = UDim2.new(1, 0, 0, 6); bar.Position = UDim2.new(0, 0, 0, 25); bar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    local fill = Instance.new("Frame", bar); fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0); fill.BackgroundColor3 = accentColor
+    local btn = Instance.new("TextButton", bar); btn.Size = UDim2.new(1, 0, 1, 0); btn.BackgroundTransparency = 1; btn.Text = ""
+    local sDragging = false
+    btn.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then sDragging = true end end)
+    UserInputService.InputChanged:Connect(function(i) if sDragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+        local pos = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+        fill.Size = UDim2.new(pos, 0, 1, 0)
+        local val = math.floor(min + (max - min) * pos); label.Text = text .. ": " .. val; callback(val)
+    end end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 then sDragging = false end end)
+end
 
--- BOTÃO DE KEYBIND (MOUSE OU TECLADO)
-local keyBtn = createButton("MIRA: " .. ToggleKey.Name, 90, function(self) 
-    isBinding = true
-    self.Text = "PRESSIONE TECLA OU MOUSE..."
-    self.TextColor3 = Color3.fromRGB(255, 255, 0)
-end)
+local function createTabBtn(name, y)
+    local b = Instance.new("TextButton", sidebar); b.Size = UDim2.new(0.9, 0, 0, 35); b.Position = UDim2.new(0.05, 0, 0, y); b.Text = name; b.BackgroundColor3 = Color3.fromRGB(40,40,40); b.TextColor3 = Color3.new(1,1,1); b.Font = Enum.Font.GothamBold; Instance.new("UICorner", b)
+    b.MouseButton1Click:Connect(function() for _, f in pairs(tabs) do f.Visible = false end; tabs[name].Visible = true end)
+end
 
--- Captura da nova entrada (Mouse ou Teclado)
-UserInputService.InputBegan:Connect(function(input)
-    if isBinding then
-        if input.UserInputType == Enum.UserInputType.Keyboard then
-            if input.KeyCode ~= MenuKey then
-                ToggleKey = input.KeyCode
-                MouseButtonTarget = nil
-                keyBtn.Text = "MIRA: " .. ToggleKey.Name
-                isBinding = false
-            end
-        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then -- Botão Direito
-            MouseButtonTarget = Enum.UserInputType.MouseButton2
-            ToggleKey = Enum.KeyCode.Unknown
-            keyBtn.Text = "MIRA: MOUSE 2"
-            isBinding = false
-        elseif input.UserInputType == Enum.UserInputType.MouseButton3 then -- Botão do Meio
-            MouseButtonTarget = Enum.UserInputType.MouseButton3
-            ToggleKey = Enum.KeyCode.Unknown
-            keyBtn.Text = "MIRA: MOUSE 3"
-            isBinding = false
+-- // 3. CONTEÚDO
+createTabBtn("Aimbot", 15); createTabBtn("Visuals", 60)
+createToggle(tabs.Aimbot, "AIMBOT", aimbotEnabled, function(v) aimbotEnabled = v end)
+createToggle(tabs.Aimbot, "EXIBIR FOV", fovVisible, function(v) fovVisible = v end)
+createSlider(tabs.Aimbot, "RAIO FOV", 30, 800, fov, function(v) fov = v end)
+createSlider(tabs.Aimbot, "SUAVIDADE", 1, 100, 15, function(v) smoothing = v/100 end)
+
+local targetBtn = Instance.new("TextButton", tabs.Aimbot); targetBtn.Size = UDim2.new(1, -10, 0, 32); targetBtn.BackgroundColor3 = Color3.fromRGB(35,35,35); targetBtn.TextColor3 = Color3.new(1,1,1); targetBtn.Text = "ALVO: "..lockPart:upper(); Instance.new("UICorner", targetBtn)
+targetBtn.MouseButton1Click:Connect(function() lockPart = (lockPart == "Head" and "HumanoidRootPart" or "Head"); targetBtn.Text = "ALVO: "..(lockPart == "Head" and "CABEÇA" or "CORPO") end)
+
+local keyBtn = Instance.new("TextButton", tabs.Aimbot); keyBtn.Size = UDim2.new(1, -10, 0, 32); keyBtn.BackgroundColor3 = Color3.fromRGB(35,35,35); keyBtn.TextColor3 = Color3.new(1,1,1); keyBtn.Text = "TECLA: "..ToggleKey.Name; Instance.new("UICorner", keyBtn)
+keyBtn.MouseButton1Click:Connect(function() isBinding = true; keyBtn.Text = "PRESSIONE..." end)
+
+createToggle(tabs.Visuals, "BOX ESP", espBox, function(v) espBox = v end)
+createToggle(tabs.Visuals, "HEALTH ESP", espHealthBar, function(v) espHealthBar = v end)
+createToggle(tabs.Visuals, "SKELETON ESP", espSkeleton, function(v) espSkeleton = v end)
+createToggle(tabs.Visuals, "NO CLIP", noclipEnabled, function(v) noclipEnabled = v end)
+
+-- // 4. LOOP PRINCIPAL (AIMBOT, ESP, NOCLIP)
+local playerDrawings = {}
+local function addPlayer(p) if not playerDrawings[p] then playerDrawings[p] = { Box = Drawing.new("Square"), HealthBack = Drawing.new("Line"), HealthMain = Drawing.new("Line"), Skel = Drawing.new("Line") } end end
+local FOV = Drawing.new("Circle"); FOV.Thickness = 1; FOV.NumSides = 60
+
+RunService.Stepped:Connect(function()
+    if noclipEnabled and localPlayer.Character then
+        for _, part in pairs(localPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
         end
-        keyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 end)
 
-createButton("ALVO: HEAD", 130, function(self) 
-    if lockPart == "Head" then lockPart = "UpperTorso"; self.Text = "ALVO: TORSO"
-    elseif lockPart == "UpperTorso" then lockPart = "HumanoidRootPart"; self.Text = "ALVO: CENTRO"
-    else lockPart = "Head"; self.Text = "ALVO: HEAD" end
-end)
-
-createButton("ESP (CAIXA): OFF", 170, function(self) 
-    espEnabled = not espEnabled
-    self.Text = espEnabled and "ESP: ON" or "ESP: OFF"
-end)
-
-createButton("TIME CHECK: OFF", 210, function(self) 
-    teamCheck = not teamCheck
-    self.Text = teamCheck and "TIME CHECK: ON" or "TIME CHECK: OFF"
-end)
-
--- // SLIDERS E COLOR PICKER
-local sliderLabel = Instance.new("TextLabel", frame)
-sliderLabel.Size = UDim2.new(1, 0, 0, 20); sliderLabel.Position = UDim2.new(0, 0, 0, 255)
-sliderLabel.Text = "RAIO DO FOV: " .. fov; sliderLabel.BackgroundTransparency = 1; sliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-local sliderBack = Instance.new("Frame", frame)
-sliderBack.Size = UDim2.new(0.8, 0, 0, 8); sliderBack.Position = UDim2.new(0.1, 0, 0, 280); sliderBack.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-
-local sliderFill = Instance.new("Frame", sliderBack)
-sliderFill.Size = UDim2.new(fov/300, 0, 1, 0); sliderFill.BackgroundColor3 = accentColor; sliderFill.BorderSizePixel = 0
-
-local sliderBtn = Instance.new("TextButton", sliderBack)
-sliderBtn.Size = UDim2.new(1, 0, 1, 0); sliderBtn.BackgroundTransparency = 1; sliderBtn.Text = ""
-
-local colorBar = Instance.new("Frame", frame)
-colorBar.Size = UDim2.new(0.8, 0, 0, 15); colorBar.Position = UDim2.new(0.1, 0, 0, 310); colorBar.BorderSizePixel = 0
-local grad = Instance.new("UIGradient")
-grad.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(255,0,0)), ColorSequenceKeypoint.new(0.4, Color3.fromRGB(0,255,0)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0,0,255))})
-grad.Parent = colorBar
-local colorBtn = Instance.new("TextButton", colorBar)
-colorBtn.Size = UDim2.new(1, 0, 1, 0); colorBtn.BackgroundTransparency = 1; colorBtn.Text = ""
-
--- // 2. LÓGICA DO JOGO
-local FOVring = Drawing.new("Circle")
-FOVring.Visible = true; FOVring.Thickness = 1.5; FOVring.Color = accentColor
-
-local draggingSlider, draggingColor = false, false
-sliderBtn.MouseButton1Down:Connect(function() draggingSlider = true end)
-colorBtn.MouseButton1Down:Connect(function() draggingColor = true end)
-UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then draggingSlider = false; draggingColor = false end end)
-
-local function isAimKeyDown()
-    if MouseButtonTarget then
-        return UserInputService:IsMouseButtonPressed(MouseButtonTarget)
-    else
-        return UserInputService:IsKeyDown(ToggleKey)
-    end
-end
-
-local boxes = {}
 RunService.RenderStepped:Connect(function()
     local mouseLoc = UserInputService:GetMouseLocation()
-    if draggingSlider then
-        local percent = math.clamp((mouseLoc.X - sliderBack.AbsolutePosition.X) / sliderBack.AbsoluteSize.X, 0, 1)
-        fov = math.floor(percent * 300)
-        sliderFill.Size = UDim2.new(percent, 0, 1, 0); sliderLabel.Text = "RAIO DO FOV: " .. fov
-    end
-    if draggingColor then
-        local percent = math.clamp((mouseLoc.X - colorBar.AbsolutePosition.X) / colorBar.AbsoluteSize.X, 0, 1)
-        accentColor = Color3.fromHSV(percent, 0.8, 1)
-        frame.BorderColor3, title.TextColor3, sliderFill.BackgroundColor3, FOVring.Color = accentColor, accentColor, accentColor, accentColor
-    end
+    FOV.Position = mouseLoc; FOV.Radius = fov; FOV.Visible = fovVisible; FOV.Color = accentColor; stroke.Color = accentColor
     
-    FOVring.Radius, FOVring.Position, FOVring.Visible = fov, camera.ViewportSize / 2, aimbotEnabled
-
-    -- ESP e AIMBOT
-    local target, shortest = nil, math.huge
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= localPlayer and v.Character then
-            local hrp = v.Character:FindFirstChild("HumanoidRootPart")
-            local box = boxes[v] or Drawing.new("Square"); boxes[v] = box
-            if hrp and espEnabled then
-                local p, vis = camera:WorldToViewportPoint(hrp.Position)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= localPlayer then
+            addPlayer(p); local d = playerDrawings[p]; local char = p.Character; local hum = char and char:FindFirstChild("Humanoid"); local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if char and hum and hrp and hum.Health > 0 then
+                local pos, vis = camera:WorldToViewportPoint(hrp.Position)
                 if vis then
-                    local size = 2000 / p.Z
-                    box.Size, box.Position, box.Color, box.Visible = Vector2.new(size, size * 1.5), Vector2.new(p.X - size/2, p.Y - size/2), accentColor, true
-                else box.Visible = false end
-            else box.Visible = false end
+                    local h = 3000 / pos.Z; local w = h / 1.6; local x, y = pos.X - w/2, pos.Y - h/2
+                    d.Box.Visible = espBox; d.Box.Size = Vector2.new(w, h); d.Box.Position = Vector2.new(x, y); d.Box.Color = accentColor; d.Box.Thickness = 1
+                    if espHealthBar then
+                        d.HealthBack.Visible = true; d.HealthBack.From = Vector2.new(x-5, y+h); d.HealthBack.To = Vector2.new(x-5, y); d.HealthBack.Thickness = 3; d.HealthBack.Color = Color3.new(0,0,0)
+                        d.HealthMain.Visible = true; d.HealthMain.From = Vector2.new(x-5, y+h); d.HealthMain.To = Vector2.new(x-5, (y+h) - (hum.Health/hum.MaxHealth * h)); d.HealthMain.Color = Color3.new(1,0,0):Lerp(Color3.new(0,1,0), hum.Health/hum.MaxHealth); d.HealthMain.Thickness = 1
+                    else d.HealthBack.Visible = false; d.HealthMain.Visible = false end
+                    if espSkeleton and char:FindFirstChild("Head") then
+                        local headPos = camera:WorldToViewportPoint(char.Head.Position)
+                        d.Skel.Visible = true; d.Skel.From = Vector2.new(headPos.X, headPos.Y); d.Skel.To = Vector2.new(pos.X, pos.Y); d.Skel.Color = accentColor
+                    else d.Skel.Visible = false end
+                else d.Box.Visible = false; d.HealthBack.Visible = false; d.HealthMain.Visible = false; d.Skel.Visible = false end
+            else d.Box.Visible = false; d.HealthBack.Visible = false; d.HealthMain.Visible = false; d.Skel.Visible = false end
+        end
+    end
 
-            local aimPart = v.Character:FindFirstChild(lockPart) or hrp
-            if aimPart and aimbotEnabled then
-                if not teamCheck or v.Team ~= localPlayer.Team then
-                    local p, vis = camera:WorldToViewportPoint(aimPart.Position)
-                    local dist = (Vector2.new(p.X, p.Y) - (camera.ViewportSize/2)).Magnitude
-                    if vis and dist <= fov and dist < shortest then shortest = dist; target = aimPart end
+    if aimbotEnabled and not main.Visible then
+        local target = nil; local dist = fov
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= localPlayer and p.Character and p.Character:FindFirstChild(lockPart) and p.Character.Humanoid.Health > 0 then
+                local sPos, vis = camera:WorldToViewportPoint(p.Character[lockPart].Position)
+                if vis then
+                    local mag = (Vector2.new(sPos.X, sPos.Y) - mouseLoc).Magnitude
+                    if mag < dist then dist = mag; target = p.Character[lockPart] end
                 end
             end
         end
-    end
-
-    if target and isAimKeyDown() and not frame.Visible then
-        local pPos = target.Position + (target.Velocity * predictionFactor)
-        camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, pPos), smoothing)
+        if target and (UserInputService:IsKeyDown(ToggleKey) or (MouseButtonTarget and UserInputService:IsMouseButtonPressed(MouseButtonTarget))) then
+            camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, target.Position), smoothing)
+        end
     end
 end)
 
 UserInputService.InputBegan:Connect(function(i, p)
-    if not p and i.KeyCode == MenuKey then frame.Visible = not frame.Visible end
+    if isBinding then
+        if i.UserInputType == Enum.UserInputType.Keyboard then ToggleKey = i.KeyCode; keyBtn.Text = "TECLA: "..i.KeyCode.Name; MouseButtonTarget = nil
+        else MouseButtonTarget = i.UserInputType; keyBtn.Text = "BOTAO: "..i.UserInputType.Name end; isBinding = false
+    elseif not p and i.KeyCode == MenuKey then main.Visible = not main.Visible end
 end)
