@@ -20,13 +20,15 @@ local UserInputService = game:GetService("UserInputService")
 local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- // 1. INTERFACE (GUI)
+-- // 1. INTERFACE (GUI) - PRIORIDADE MÁXIMA
 local sg = Instance.new("ScreenGui", localPlayer.PlayerGui)
 sg.Name = "TheuMenus_V1_Final"
 sg.ResetOnSpawn = false
+sg.DisplayOrder = 2147483647 -- Garante que o menu fique acima de tudo
+sg.IgnoreGuiInset = true 
 
 local main = Instance.new("Frame", sg)
-main.Size = UDim2.new(0, 480, 0, 380) -- Aumentado um pouco para caber tudo
+main.Size = UDim2.new(0, 480, 0, 380)
 main.Position = UDim2.new(0.5, -240, 0.4, -190)
 main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 main.BorderSizePixel = 0
@@ -72,7 +74,7 @@ for _, f in pairs(tabs) do
 end
 tabs.Aimbot.Visible = true
 
--- // 2. FUNÇÕES DE CRIAÇÃO
+-- // 2. FUNÇÕES DE CRIAÇÃO (UI)
 local function createToggle(tab, text, start, callback)
     local b = Instance.new("TextButton", tab)
     b.Size = UDim2.new(1, -10, 0, 32); b.BackgroundColor3 = Color3.fromRGB(35, 35, 35); b.TextColor3 = Color3.new(1,1,1); b.Text = text .. (start and ": ON" or ": OFF"); b.Font = Enum.Font.Gotham; Instance.new("UICorner", b)
@@ -101,7 +103,7 @@ local function createTabBtn(name, y)
     b.MouseButton1Click:Connect(function() for _, f in pairs(tabs) do f.Visible = false end; tabs[name].Visible = true end)
 end
 
--- // 3. CONTEÚDO
+-- // 3. CONTEÚDO DAS ABAS
 createTabBtn("Aimbot", 15); createTabBtn("Visuals", 60)
 createToggle(tabs.Aimbot, "AIMBOT", aimbotEnabled, function(v) aimbotEnabled = v end)
 createToggle(tabs.Aimbot, "EXIBIR FOV", fovVisible, function(v) fovVisible = v end)
@@ -136,6 +138,7 @@ RunService.RenderStepped:Connect(function()
     local mouseLoc = UserInputService:GetMouseLocation()
     FOV.Position = mouseLoc; FOV.Radius = fov; FOV.Visible = fovVisible; FOV.Color = accentColor; stroke.Color = accentColor
     
+    -- Visuals / ESP
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
             addPlayer(p); local d = playerDrawings[p]; local char = p.Character; local hum = char and char:FindFirstChild("Humanoid"); local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -157,7 +160,8 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if aimbotEnabled and not main.Visible then
+    -- Lógica do Aimbot (Independente do Menu)
+    if aimbotEnabled then
         local target = nil; local dist = fov
         for _, p in pairs(Players:GetPlayers()) do
             if p ~= localPlayer and p.Character and p.Character:FindFirstChild(lockPart) and p.Character.Humanoid.Health > 0 then
@@ -168,15 +172,29 @@ RunService.RenderStepped:Connect(function()
                 end
             end
         end
-        if target and (UserInputService:IsKeyDown(ToggleKey) or (MouseButtonTarget and UserInputService:IsMouseButtonPressed(MouseButtonTarget))) then
+        
+        local isPressed = UserInputService:IsKeyDown(ToggleKey) or (MouseButtonTarget and UserInputService:IsMouseButtonPressed(MouseButtonTarget))
+        if target and isPressed then
             camera.CFrame = camera.CFrame:Lerp(CFrame.new(camera.CFrame.Position, target.Position), smoothing)
         end
     end
 end)
 
+-- // 5. CONTROLES DE ENTRADA (TOGGLE MENU & BINDING)
 UserInputService.InputBegan:Connect(function(i, p)
     if isBinding then
-        if i.UserInputType == Enum.UserInputType.Keyboard then ToggleKey = i.KeyCode; keyBtn.Text = "TECLA: "..i.KeyCode.Name; MouseButtonTarget = nil
-        else MouseButtonTarget = i.UserInputType; keyBtn.Text = "BOTAO: "..i.UserInputType.Name end; isBinding = false
-    elseif not p and i.KeyCode == MenuKey then main.Visible = not main.Visible end
+        if i.UserInputType == Enum.UserInputType.Keyboard then 
+            ToggleKey = i.KeyCode; keyBtn.Text = "TECLA: "..i.KeyCode.Name; MouseButtonTarget = nil
+        else 
+            MouseButtonTarget = i.UserInputType; keyBtn.Text = "BOTAO: "..i.UserInputType.Name 
+        end; isBinding = false
+    elseif not p and i.KeyCode == MenuKey then 
+        main.Visible = not main.Visible
+        -- Unlock do mouse para permitir clicar no ESC/Menu do Roblox
+        UserInputService.OverrideMouseIconBehavior = main.Visible and Enum.MouseIconBehavior.ForceShow or Enum.MouseIconBehavior.Default
+    end
 end)
+
+-- Garantia inicial de mouse visível para configuração
+UserInputService.OverrideMouseIconBehavior = Enum.MouseIconBehavior.ForceShow
+warn("THEU MENUS V1: Carregado. Tecla 'K' abre o menu.")
